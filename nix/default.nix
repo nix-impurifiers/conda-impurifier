@@ -159,9 +159,17 @@ let
           lib.concatStringsSep " AND " (
             lib.unique (
               [ "MIT" ]
-              ++ map (
-                value: if builtins.isAttrs value then value.spdxId or "LicenseRef-Unknown" else "LicenseRef-Unknown"
-              ) (lib.toList (pkg.meta.license or [ ]))
+              ++
+                map
+                  (
+                    value: if builtins.isAttrs value then value.spdxId or "LicenseRef-Unknown" else "LicenseRef-Unknown"
+                  )
+                  (
+                    if lib.toList (pkg.meta.license or [ ]) == [ ] then
+                      [ { spdxId = "LicenseRef-Unknown"; } ]
+                    else
+                      lib.toList pkg.meta.license
+                  )
             )
           );
       spec = {
