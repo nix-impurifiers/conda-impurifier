@@ -24,3 +24,10 @@ Nix/Python provider fixture packages use preinstalled host resources and retain
 third-party notices. A production Nix installer remains deferred. Signed remote
 channels, additional architectures, and shared root-owned environment policy
 need separate evidence.
+
+`native-payload-vm` verifies two producer-supplied prefix payloads in an isolated
+root without `/nix`, including independent upgrade/removal. `bundled-vm` repeats
+the full four-frontend lifecycle matrix with a private static client and an
+incompatible external candidate. Shared client selection is used for realization
+and host-library capture. Python bytecode output is disabled to avoid unowned
+cache files in installed runtime directories.

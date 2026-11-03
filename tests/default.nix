@@ -4,6 +4,7 @@
   impurifier,
   tools,
   coreSrc,
+  bundled ? false,
 }:
 let
   marker = impurifier.buildPackage {
@@ -88,7 +89,20 @@ let
   channel = impurifier.makeChannel {
     packages = [
       marker
-      (provider "nix" pkgs.nix.version "nix-store" "${pkgs.nix}/bin/nix-store")
+      (
+        if bundled then
+          impurifier.makeNativePackage {
+            name = "incompatible-client";
+            version = "1";
+            payload = pkgs.runCommand "incompatible-nix-candidate" { } ''
+              mkdir -p $out/bin
+              printf '#!/bin/sh\nexit 1\n' > $out/bin/nix-store
+              chmod 755 $out/bin/nix-store
+            '';
+          }
+        else
+          provider "nix" pkgs.nix.version "nix-store" "${pkgs.nix}/bin/nix-store"
+      )
       pythonProvider
       pipProvider
       impurifier.runtimePackage
@@ -101,6 +115,7 @@ let
   };
 in
 {
+  native-payload-vm = import ./native-payload-vm.nix { inherit pkgs impurifier; };
   native-package = marker;
   native-vm = pkgs.testers.runNixOSTest {
     name = "conda-native-contract";
@@ -157,6 +172,7 @@ in
                   machine.succeed(wrapped + " || { cat /tmp/" + frontend + "-transaction.log; exit 1; }")
               else:
                   machine.fail(wrapped)
+          ${pkgs.lib.optionalString bundled ''native("install incompatible-client")''}
           native("install 'conda-tool=1=net_*'")
           machine.succeed("test ! -e ${builtins.unsafeDiscardStringContext (toString (tool "1"))}")
           machine.fail("su - consumer -c " + shlex.quote(prefix + "/bin/conda-tool") + " > /tmp/net-activation.log 2>&1")

@@ -71,3 +71,33 @@ pip policy enabled and exercise all four frontend/solver combinations in QEMU.
 Original code is MIT licensed. Native application license metadata derives from
 its Nix package and can be overridden with `license`; third-party notices are
 preserved. See [THIRD_PARTY.md](THIRD_PARTY.md).
+
+## Native payloads and bundled clients
+
+`makeNativePackage { name; version; payload; dependencies ? []; license ? ...; }`
+packages a producer-supplied Conda prefix tree directly. It adds no impurifier
+runtime, Nix dependency, profile hooks, roots or database. This is the named
+high-level entry point for the existing native artifact builder. Its default
+build identity includes the producer output and release epoch. Supply the actual
+payload license; the default is `LicenseRef-Unknown`.
+
+The producer must supply software compatible with the target environment and
+prefix conventions. Files are not relocated, and copying an arbitrary closure
+linked to `/nix/store` into a prefix does not make it self-contained. This input
+contract supports appropriate native builds without requiring useful nixpkgs
+packages or NixOS assumptions. The VM test installs static Nix-built commands as
+an ordinary user into two prefixes, executes them inside a root with no `/nix`,
+then upgrades/removes them independently through micromamba.
+
+For the existing store-managed mode, `makeRuntimePackage` accepts
+`bundledNixStore` and nonempty `bundledNixNotices`. The supplied executable must be
+static and target-compatible. Bundling makes the default external Nix dependency
+optional. Launch prefers a compatible external client, falls back to the private
+prefix client, and honors explicit `IMPURIFIER_NIX_STORE` selection. Failed
+operations are not retried with another store client. All four frontend/solver
+variants exercise actual bundled-client fallback from an incompatible candidate.
+
+The runtime client still uses a Nix store and its normal trust/access policy.
+Trusted root preparation continues to use the administrator-installed helper and
+client; it never executes a prefix-owned executable as root. Bundling does not
+bootstrap a daemon or bypass unsigned-cache policy.

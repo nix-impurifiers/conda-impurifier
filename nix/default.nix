@@ -95,21 +95,43 @@ let
       ''
         python3 ${../src/channel.py} "$out" ${lib.escapeShellArgs (map toString packages)}
       '';
+  makeNativePackage =
+    args@{ payload, ... }:
+    buildPackage (
+      {
+        buildNumber = sourceEpoch;
+        build =
+          "native_"
+          + builtins.substring 0 16 (builtins.hashString "sha256" (toString payload))
+          + "_"
+          + toString (args.buildNumber or sourceEpoch);
+        license = "LicenseRef-Unknown";
+      }
+      // args
+    );
   makeRuntimePackage =
     {
-      nixDependency ? "nix >=2.0",
+      bundledNixStore ? null,
+      bundledNixNotices ? [ ],
+      nixDependency ? (if bundledNixStore == null then "nix >=2.0" else null),
       pythonDependency ? "python >=3.8",
       version ? core.runtimeVersion,
     }:
     buildPackage {
       name = "conda-impurifier";
       inherit version;
-      dependencies = [
-        nixDependency
-        pythonDependency
-      ];
+      dependencies = [ pythonDependency ] ++ lib.optional (nixDependency != null) nixDependency;
       payload = pkgs.runCommand "conda-runtime" { } ''
         mkdir -p $out/share/conda-impurifier/runtime
+        ${lib.optionalString (bundledNixStore != null) ''
+          cp ${
+            core.makeRuntimeTree { inherit bundledNixStore bundledNixNotices; }
+          }/usr/lib/conda-impurifier/nix-store $out/share/conda-impurifier/runtime/nix-store
+          mkdir -p $out/share/licenses/conda-impurifier
+          cp -r ${
+            core.makeRuntimeTree { inherit bundledNixStore bundledNixNotices; }
+          }/usr/share/licenses/conda-impurifier/bundled-nix $out/share/licenses/conda-impurifier/
+        ''}
         cp ${../src/launch.py} $out/share/conda-impurifier/runtime/launch.py
         cp ${../src/unlink.py} $out/share/conda-impurifier/runtime/unlink.py
         cp ${coreSrc}/src/engine.py $out/share/conda-impurifier/runtime/engine.py
@@ -242,6 +264,7 @@ in
     buildPackage
     makeChannel
     makeRuntimePackage
+    makeNativePackage
     makePackageArtifact
     ;
   runtimePackage = makeRuntimePackage { };
